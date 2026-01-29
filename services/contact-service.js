@@ -1,14 +1,19 @@
+/* [v7.0.2] Standard A Refactor */
 /**
  * services/contact-service.js
  * 聯絡人業務邏輯服務層
- * * @version 7.0.0 (Standard A + S Refactor)
- * @date 2026-01-23
+ * * @version 7.1.0 (Phase 5 - SQL Reader Fallback Injection)
+ * @date 2026-01-29
  * @description 
  * [SQL-Ready Refactor]
  * 1. 承接所有 Reader 移除的業務邏輯 (Filter, Sort, Pagination, Join)。
  * 2. 負責資料流控制：讀取 Reader -> 計算/合併 -> 傳遞 rowIndex 給 Writer。
  * 3. 確保 Writer 接收到的指令是 Pure Write (RowIndex + Data)。
+ * [Test] 注入 ContactSqlReader 供讀取測試，失敗時 Fallback 至 Sheet Reader。
  */
+
+// [Patch] 引入 SQL Reader 供測試期雙軌並行
+const ContactSqlReader = require('../data/contact-sql-reader');
 
 class ContactService {
     /**
@@ -22,6 +27,9 @@ class ContactService {
         this.contactWriter = contactWriter;
         this.companyReader = companyReader;
         this.config = config || { PAGINATION: { CONTACTS_PER_PAGE: 20 } }; 
+
+        // [Patch] 測試期硬性注入 SQL Reader (不經由 DI Container)
+        this.sqlReader = new ContactSqlReader();
     }
 
     /**
@@ -111,10 +119,21 @@ class ContactService {
      */
     async searchOfficialContacts(query, page = 1) {
         try {
-            const [allContacts, allCompanies] = await Promise.all([
-                this.contactReader.getContactList(),
-                this.companyReader.getCompanyList()
-            ]);
+            // [Patch Start] SQL Read Priority with Fallback
+            let allContacts;
+            try {
+                allContacts = await this.sqlReader.getContacts();
+                // 簡易驗證：若 SQL 回傳非陣列或 null，視為失敗
+                if (!Array.isArray(allContacts)) throw new Error('SQL returned invalid structure');
+                console.log('[ContactService] searchOfficialContacts: Serving from SQL Reader');
+            } catch (sqlError) {
+                console.error('[ContactService] searchOfficialContacts: SQL Read Failed, fallback to Sheet.', sqlError.message);
+                // Fallback: 使用原本的 Sheet Reader
+                allContacts = await this.contactReader.getContactList();
+            }
+            // [Patch End]
+
+            const allCompanies = await this.companyReader.getCompanyList();
 
             const companyNameMap = new Map(allCompanies.map(c => [c.companyId, c.companyName]));
 
@@ -159,9 +178,35 @@ class ContactService {
      */
     async getContactById(contactId) {
         try {
-            const result = await this.searchOfficialContacts(contactId, 1);
-            const contact = result.data.find(c => c.contactId === contactId);
-            return contact || null;
+            // [Patch Start] SQL Read Priority with Fallback
+            let rawContact;
+            try {
+                rawContact = await this.sqlReader.getContactById(contactId);
+                if (!rawContact) throw new Error(`Contact ${contactId} not found in SQL`);
+                console.log(`[ContactService] getContactById: Serving ${contactId} from SQL Reader`);
+            } catch (sqlError) {
+                console.error(`[ContactService] getContactById: SQL Read Failed for ${contactId}, fallback to Sheet.`, sqlError.message);
+                // Fallback: 使用原本的邏輯 (內部呼叫 searchOfficialContacts 進行查找與 Join)
+                const result = await this.searchOfficialContacts(contactId, 1);
+                const contact = result.data.find(c => c.contactId === contactId);
+                return contact || null;
+            }
+            // [Patch End]
+
+            if (!rawContact) return null;
+
+            const contact = { ...rawContact }; // clone
+
+            try {
+                const companies = await this.companyReader.getCompanyList();
+                const companyMap = new Map(companies.map(c => [c.companyId, c.companyName]));
+
+                if (contact.companyId) contact.companyName = companyMap.get(contact.companyId) || contact.companyId;
+            } catch (joinError) {
+                console.warn(`[ContactService] Join failed for ${contactId}, returning raw clone.`, joinError);
+            }
+
+            return contact;
         } catch (error) {
             console.error('[ContactService] getContactById Error:', error);
             return null;
