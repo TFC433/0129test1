@@ -1,0 +1,111 @@
+/* ==================== modules/layout.css ==================== */
+/* 應用程式佈局 - 第3個模組 */
+
+/* 應用程式佈局 */
+.app-layout {
+    display: flex;
+    min-height: 100vh;
+    position: relative;
+}
+
+/* 主要內容區域 */
+.main-content {
+    flex: 1; 
+    /* 【修改】展開時的左邊距縮小為 200px (原 280px) */
+    margin-left: 200px;
+    background: var(--primary-bg); 
+    min-height: 100vh;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: var(--spacing-8);
+}
+
+/* ========== 收合狀態下主內容區的樣式 ========== */
+.app-layout.sidebar-collapsed .main-content {
+    /* 【保持不變】收合時維持 80px */
+    margin-left: 80px;
+}
+
+.page-header {
+    background: var(--secondary-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: var(--spacing-6) var(--spacing-8);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-5);
+    border-radius: var(--rounded-2xl);
+    box-shadow: var(--shadow-md);
+    margin-bottom: var(--spacing-8);
+}
+
+.header-content { 
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--spacing-4);
+}
+
+.header-content h1 {
+    font-size: var(--font-size-3xl); 
+    font-weight: 700; 
+    margin-bottom: var(--spacing-1);
+    color: var(--text-primary);
+}
+
+.page-subtitle { 
+    color: var(--text-secondary); 
+    font-size: var(--font-size-base); 
+}
+
+.header-actions {
+    display: flex;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
+    align-items: center;
+    margin-left: auto;
+}
+
+/* 儀表板網格 */
+.dashboard-grid-flexible {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--spacing-6);
+}
+
+.grid-col-3 { grid-column: span 3; }
+.grid-col-4 { grid-column: span 4; }
+.grid-col-5 { grid-column: span 5; }
+.grid-col-6 { grid-column: span 6; }
+.grid-col-7 { grid-column: span 7; }
+.grid-col-8 { grid-column: span 8; }
+.grid-col-12 { grid-column: span 12; }
+
+.dashboard-widget {
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--rounded-xl);
+    padding: var(--spacing-6);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+}
+
+.widget-header { 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    margin-bottom: var(--spacing-5);
+    flex-shrink: 0;
+}
+
+.widget-title { 
+    font-size: var(--font-size-lg); 
+    font-weight: 700; 
+    color: var(--text-primary); 
+    margin: 0; 
+}
+
+.widget-content { 
+    flex-grow: 1;
+    min-height: 1px;
+}

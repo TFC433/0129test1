@@ -1,0 +1,286 @@
+/* ==================== modules/navigation.css ==================== */
+/* 側邊欄 - 第4個模組 */
+
+/* 側邊欄 */
+.sidebar {
+    width: 200px;
+    background: var(--secondary-bg);
+    border-right: 1px solid var(--border-color);
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: fixed;
+    height: 100vh;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+}
+
+/* LOGO 區域維持置中 (您要求的 LOGO 不動) */
+.sidebar-header {
+    padding: var(--spacing-6);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center; /* LOGO 保持水平置中 */
+    transition: padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logo {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.sidebar-logo {
+    width: 100%;
+    max-width: 120px; 
+    height: auto;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: block;
+}
+
+.sidebar-nav { 
+    flex: 1; 
+    padding: var(--spacing-6) 0; 
+    overflow-y: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.sidebar-nav::-webkit-scrollbar {
+    display: none;
+}
+
+.nav-list { 
+    list-style: none; 
+    padding: 0 var(--spacing-4); 
+}
+
+.nav-item { 
+    margin-bottom: var(--spacing-1); 
+}
+
+/* --- 【修改】導航連結樣式 --- */
+.nav-link {
+    display: flex; 
+    align-items: center; 
+    gap: var(--spacing-3);
+    
+    /* 上/下 padding 維持 var(--spacing-4) = 16px
+       右 padding 維持 12px
+       左 padding 改為 22px (原 12px + 10px 位移) 
+    */
+    padding: var(--spacing-4) 12px var(--spacing-4) 22px; 
+    
+    border-radius: var(--rounded-lg);
+    text-decoration: none; 
+    color: var(--text-secondary);
+    transition: all 0.2s ease; 
+    position: relative; 
+    font-weight: 500;
+    height: 56px;
+    
+    /* 確保靠左對齊 (這是預設值，但寫出來更明確) */
+    justify-content: flex-start; 
+}
+
+.nav-link:hover { 
+    background: var(--glass-bg); 
+    color: var(--text-primary); 
+    transform: translateX(4px); 
+}
+
+.nav-item.active .nav-link { 
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); 
+    color: white; 
+    box-shadow: var(--shadow-md); 
+    font-weight: 600; 
+}
+
+svg.nav-icon { 
+    min-width: 20px; 
+    width: 20px; 
+    height: 20px; 
+    transition: all 0.2s ease;
+    color: var(--text-secondary); 
+}
+.nav-item.active .nav-link svg.nav-icon {
+    color: white; 
+}
+
+/* 側邊欄釘選與收合狀態樣式 */
+.sidebar-footer {
+    padding: var(--spacing-4);
+    margin-top: auto;
+    border-top: 1px solid var(--border-color);
+}
+
+#sidebar-pin-toggle {
+    width: 100%;
+    background: transparent;
+    border: none;
+    height: 56px;
+}
+
+#sidebar-pin-toggle .nav-icon svg {
+    width: 24px;
+    height: 24px;
+    color: var(--text-secondary);
+    transition: color 0.2s ease;
+}
+
+#sidebar-pin-toggle:hover {
+    background: var(--glass-bg);
+    color: var(--text-primary);
+}
+#sidebar-pin-toggle:hover .nav-icon svg {
+    color: var(--text-primary);
+}
+
+/* ==================== 收合狀態下的核心樣式 ==================== */
+.app-layout.sidebar-collapsed .sidebar {
+    width: 80px;
+}
+
+.app-layout.sidebar-collapsed .sidebar-header {
+    padding-left: 0;
+    padding-right: 0;
+    justify-content: center;
+}
+
+.app-layout.sidebar-collapsed .sidebar-logo {
+    max-width: 40px; 
+}
+
+.app-layout.sidebar-collapsed #sidebar-pin-toggle {
+    justify-content: center;
+}
+
+.app-layout.sidebar-collapsed .sidebar .nav-text {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: opacity 0.1s ease, width 0.2s ease;
+}
+
+/* 收合時的連結樣式修正 
+   (收合時必須置中，且不需要額外的左移，否則圖示會歪掉)
+*/
+.app-layout.sidebar-collapsed .nav-link {
+    padding: 0; /* 重置 padding */
+    justify-content: center; /* 強制置中 */
+}
+
+.app-layout.sidebar-collapsed .nav-item.active .nav-link {
+    background: transparent;
+    box-shadow: none;
+}
+.app-layout.sidebar-collapsed .nav-link:hover {
+    background: transparent; 
+    transform: none;
+}
+
+/* 圖示樣式修正 */
+.app-layout.sidebar-collapsed svg.nav-icon {
+    width: 40px;
+    height: 40px;
+    padding: 10px; 
+    border-radius: var(--rounded-lg);
+    flex-shrink: 0;
+}
+
+.app-layout.sidebar-collapsed .nav-item.active svg.nav-icon {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    color: white;
+    padding: 10px; 
+}
+
+.app-layout.sidebar-collapsed .nav-link:hover svg.nav-icon {
+    background: var(--glass-bg);
+}
+
+/* 主題切換按鈕 */
+.theme-toggle {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--rounded-lg);
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(20px);
+}
+
+.theme-toggle:hover {
+    transform: scale(1.05);
+    background: var(--glass-bg);
+}
+
+.theme-toggle svg {
+    width: 20px;
+    height: 20px;
+    color: var(--text-primary);
+    transition: all 0.3s ease;
+}
+
+.theme-toggle .sun-icon { display: none; }
+.theme-toggle .moon-icon { display: block; }
+[data-theme="light"] .theme-toggle .sun-icon { display: block; }
+[data-theme="light"] .theme-toggle .moon-icon { display: none; }
+
+/* 手機版隱藏釘選按鈕 */
+@media (max-width: 768px) {
+    .sidebar-footer {
+        display: none;
+    }
+}
+
+/* ==================== Admin 專屬隔離區樣式 (Confidential Zone) ==================== */
+
+/* 1. 結構隔離：上方增加分隔線與間距 */
+.nav-item.admin-restricted {
+    margin-top: var(--spacing-4);
+    border-top: 1px solid var(--border-color);
+    padding-top: var(--spacing-4);
+}
+
+/* 2. 平時狀態：微微的淡紅色系背景 + 深紅文字 + 鎖頭對齊 */
+.nav-item.admin-restricted .nav-link {
+    background-color: rgba(239, 68, 68, 0.08); /* 極淡紅 */
+    color: #991b1b; /* 深紅/鐵鏽紅 */
+}
+
+.nav-item.admin-restricted .nav-link .nav-icon {
+    color: #991b1b;
+}
+
+/* 3. 懸停狀態：稍微加深背景 */
+.nav-item.admin-restricted .nav-link:hover {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #7f1d1d; /* 更深的紅 */
+    transform: translateX(4px); /* 維持原本的動效 */
+}
+
+/* 4. 選中狀態：深紅漸層 + 反白文字 (與一般按鈕區隔) */
+.nav-item.admin-restricted.active .nav-link {
+    background: linear-gradient(135deg, #ef4444, #991b1b); /* 鮮紅到酒紅漸層 */
+    color: white;
+    box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.3); /* 紅色光暈 */
+}
+
+.nav-item.admin-restricted.active .nav-link .nav-icon {
+    color: white;
+}
+
+/* 5. 收合狀態下的微調 (確保分隔線樣式正確) */
+.app-layout.sidebar-collapsed .nav-item.admin-restricted {
+    margin-top: var(--spacing-2);
+    padding-top: var(--spacing-2);
+}
+
+.app-layout.sidebar-collapsed .nav-item.admin-restricted.active svg.nav-icon {
+    background: linear-gradient(135deg, #ef4444, #991b1b);
+    color: white;
+}

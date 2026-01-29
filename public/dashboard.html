@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FATDX CRM系統 - 客戶關係管理</title>
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" sizes="any">
+
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/user-profile.css">
+
+    <script src="https://code.highcharts.com/maps/highmaps.js"></script>
+    <script src="https://code.highcharts.com/maps/modules/data.js"></script>
+    <script src="https://code.highcharts.com/mapdata/countries/tw/tw-all.js"></script>
+    <script src="https://code.highcharts.com/modules/exporting.js"></script>
+    <script src="https://code.highcharts.com/modules/export-data.js"></script>
+    <script src="https://code.highcharts.com/modules/accessibility.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+</head>
+<body>
+    <script>
+        // 檢查登入狀態，若未登入則導向登入頁
+        if (!localStorage.getItem('crm-token') && !localStorage.getItem('crmToken')) {
+            window.location.href = '/login.html';
+        }
+    </script>
+
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="#" class="logo" data-page="dashboard" title="回到儀表板">
+                    <img src="images/logo-full.svg" alt="FATDX CRM" class="sidebar-logo">
+                </a>
+            </div>
+
+            <nav class="sidebar-nav">
+                <ul class="nav-list">
+                    <li class="nav-item active"><a href="#" class="nav-link" data-page="dashboard"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span class="nav-text">儀表板</span></a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-page="contacts"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="nav-text">潛在客戶</span></a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-page="opportunities"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span class="nav-text">機會案件</span></a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-page="events"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg><span class="nav-text">事件紀錄</span></a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-page="weekly-business"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><span class="nav-text">週間業務</span></a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-page="companies"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg><span class="nav-text">公司管理</span></a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-page="interactions"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg><span class="nav-text">互動總覽</span></a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-page="announcements"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"></path><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path></svg><span class="nav-text">佈告欄</span></a></li>
+                    <li class="nav-item">
+                      <a href="#" class="nav-link" data-page="sales-analysis">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <line x1="18" y1="20" x2="18" y2="10"></line>
+                          <line x1="12" y1="20" x2="12" y2="4"></line>
+                          <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                        <span class="nav-text">受注分析</span>
+                      </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="nav-link" id="sidebar-pin-toggle" title="切換側邊欄釘選狀態">
+                    <div class="nav-icon"></div>
+                    <span class="nav-text">收合側邊欄</span>
+                </button>
+            </div>
+        </aside>
+
+        <div class="mobile-nav-backdrop"></div>
+
+        <main class="main-content">
+            <header class="page-header">
+                <div class="header-content">
+                    <button class="mobile-nav-toggle">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <div>
+                        <h1 class="page-title" id="page-title">儀表板</h1>
+                        <p class="page-subtitle" id="page-subtitle">以機會為核心的客戶關係管理平台</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <a href="#" class="action-btn icon-btn" data-page="dashboard" title="返回儀表板">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                    </a>
+                    <button class="action-btn primary" onclick="showNewOpportunityModal()" title="新增機會">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                        <span class="btn-text">新增機會</span>
+                    </button>
+                    <button class="action-btn secondary" onclick="showEventLogForCreation()" title="新增事件">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                        <span class="btn-text">新增事件</span>
+                    </button>
+                    
+                    <button class="action-btn secondary btn-gradient-highlight" onclick="showNewMeetingModal()" title="建立會議">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        <span class="btn-text">建立會議</span>
+                    </button>
+                    <button class="action-btn secondary" onclick="dashboardManager.forceRefresh()" title="強制重新整理">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                    </button>
+                    
+                    <button id="data-refresh-notification" class="action-btn secondary" 
+                            style="display: none; background-color: var(--accent-orange); color: white; border: none; cursor: pointer; animation: pulse-orange 2s infinite;" 
+                            onclick="CRM_APP.forceRefreshAndRestartPolling()"
+                            title="有其他成員更新了資料，點此重新整理">
+                        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                            <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.2 5.002l.147-.293a.75.75 0 011.302.651l-.147.293a7 7 0 1011.02-6.32 1 1 0 00-1.383.58 5.492 5.492 0 01-1.739.08zM8.41 4.54a.75.75 0 011.18-.04l.147.293a.75.75 0 01-1.302.651l-.147-.293A.75.75 0 018.41 4.54zM4.688 8.576a5.5 5.5 0 019.2-5.002l-.147.293a.75.75 0 01-1.302-.651l.147-.293a7 7 0 10-11.02 6.32 1 1 0 001.383-.58 5.492 5.492 0 011.739-.08z" clip-rule="evenodd" />
+                        </svg>
+                        <span class="btn-text">資料已更新，請點此重整</span>
+                    </button>
+
+                    <div class="user-info" id="user-display" onclick="UserProfile.open()" title="查看個人檔案">
+                        <span id="user-display-name">User</span>
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+
+                    <button class="action-btn danger" onclick="logout()" title="登出">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        <span class="btn-text">登出</span>
+                    </button>
+                </div>
+            </header>
+
+            <div id="page-content-container">
+                <div id="page-dashboard" class="page-view">
+                    <div class="dashboard-grid-flexible">
+                        <div class="grid-col-12 dashboard-widget" id="announcement-widget">
+                            <div class="widget-header">
+                                <h2 class="widget-title">最新公告</h2>
+                            </div>
+                            <div class="widget-content">
+                                <div class="loading show"><div class="spinner"></div><p>載入公告中...</p></div>
+                            </div>
+                        </div>
+
+                        <div class="stats-grid">
+                            <div class="stat-card blue" data-page="contacts">
+                                <div class="stat-header">
+                                    <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+                                    <div class="stat-label">潛在客戶(名片)</div>
+                                </div>
+                                <div class="stat-content">
+                                    <div class="stat-number" id="contacts-count">-</div>
+                                    <div class="stat-trend" id="contacts-trend"></div>
+                                </div>
+                            </div>
+
+                            <div class="stat-card green" data-page="opportunities">
+                                <div class="stat-header">
+                                    <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
+                                    <div class="stat-label">機會案件</div>
+                                </div>
+                                <div class="stat-content">
+                                    <div class="stat-number" id="opportunities-count">-</div>
+                                    <div class="stat-trend" id="opportunities-trend"></div>
+                                </div>
+                            </div>
+
+                            <div class="stat-card orange" data-page="events">
+                                <div class="stat-header">
+                                    <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+                                    <div class="stat-label">事件紀錄</div>
+                                </div>
+                                <div class="stat-content">
+                                    <div class="stat-number" id="event-logs-count">-</div>
+                                    <div class="stat-trend" id="event-logs-trend"></div>
+                                </div>
+                            </div>
+
+                            <div class="stat-card purple" data-page="sales-analysis" style="border-left: none;">
+                                <div class="stat-header">
+                                    <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+                                    <div class="stat-label">成交案件數</div>
+                                </div>
+                                <div class="stat-content">
+                                    <div class="stat-number" id="won-count">-</div>
+                                    <div class="stat-trend" id="won-trend"></div>
+                                </div>
+                            </div>
+
+                            <div class="stat-card cyan" data-page="companies" style="border-left: none;">
+                                <div class="stat-header">
+                                    <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></div>
+                                    <div class="stat-label">拜訪MTU</div>
+                                </div>
+                                <div class="stat-content">
+                                    <div class="stat-number" id="mtu-count">-</div>
+                                    <div class="stat-trend" id="mtu-trend"></div>
+                                </div>
+                            </div>
+
+                             <div class="stat-card teal" data-page="companies" style="border-left: none;">
+                                <div class="stat-header">
+                                    <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg></div>
+                                    <div class="stat-label">拜訪SI</div>
+                                </div>
+                                <div class="stat-content">
+                                    <div class="stat-number" id="si-count">-</div>
+                                    <div class="stat-trend" id="si-trend"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid-col-6 dashboard-widget" id="weekly-business-widget">
+                            <div class="widget-header">
+                                <h2 class="widget-title" id="weekly-business-title">本週業務重點</h2>
+                            </div>
+                            <div class="widget-content">
+                                <div class="loading show"><div class="spinner"></div><p>載入中...</p></div>
+                            </div>
+                        </div>
+
+                        <div class="grid-col-3 dashboard-widget" id="activity-feed-widget">
+                            <div class="widget-header">
+                                <h2 class="widget-title">最新動態</h2>
+                            </div>
+                            <div class="widget-content">
+                                <div class="loading show"><div class="spinner"></div><p>載入中...</p></div>
+                            </div>
+                        </div>
+
+                        <div class="grid-col-3 dashboard-widget" id="map-widget">
+                             <div class="widget-header">
+                                 <h2 id="map-title" class="widget-title">全台機會分布</h2>
+                                 <div class="map-filter">
+                                     <select id="map-opportunity-filter" class="form-select-sm" onchange="window.mapManager.update(this.value)">
+                                     </select>
+                                 </div>
+                             </div>
+                             <div class="map-container">
+                                 <div id="taiwan-map-container">
+                                     <div class="loading show"><div class="spinner"></div><p>載入地圖資料中...</p></div>
+                                 </div>
+                             </div>
+                         </div>
+
+                        <div class="grid-col-12 dashboard-widget" id="kanban-widget">
+                            <div class="widget-header">
+                                <h2 class="widget-title">機會階段看板</h2>
+                                <div class="kanban-controls-container"></div>
+                            </div>
+                            <div class="kanban-board-wrapper">
+                                <div class="kanban-board" id="kanban-board-container" style="display: none;">
+                                    <div class="loading show"><div class="spinner"></div><p>載入看板資料中...</p></div>
+                                </div>
+                            </div>
+                            <div id="chip-wall-board-container" style="display: none;">
+                                <div class="loading show"><div class="spinner"></div><p>載入晶片牆資料中...</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="page-contacts" class="page-view" style="display: none;"></div>
+                <div id="page-opportunities" class="page-view" style="display: none;"></div>
+                <div id="page-sales-analysis" class="page-view" style="display: none;">
+                    <div class="loading show"><div class="spinner"></div></div>
+                </div>
+                <div id="page-companies" class="page-view" style="display: none;"></div>
+                <div id="page-interactions" class="page-view" style="display: none;"></div>
+                <div id="page-weekly-business" class="page-view" style="display: none;"></div>
+                <div id="page-events" class="page-view" style="display: none;">
+                    <div id="event-log-dashboard-container" class="dashboard-grid-flexible" style="margin-bottom: 24px;"></div>
+                    <div id="event-log-list-container"></div>
+                </div>
+                
+                <div id="page-company-details" class="page-view" style="display: none;"></div>
+                <div id="page-opportunity-details" class="page-view" style="display: none;"></div>
+
+                <div id="page-announcements" class="page-view" style="display: none;"></div>
+
+                <div id="page-products" class="page-view" style="display: none;"></div>
+            </div>
+        </main>
+    </div>
+
+    <div id="user-profile-modal" class="profile-modal">
+        <div class="profile-card">
+            <button type="button" class="close-profile-btn" onclick="UserProfile.close()" title="關閉">
+                &times;
+            </button>
+
+            <div class="profile-views" id="profile-views">
+                
+                <div class="view-section" id="view-profile">
+                    <div class="profile-header">
+                        <div class="avatar-large" id="profile-avatar">U</div>
+                        
+                        <h2 id="profile-name-large" style="margin:0 0 10px 0;">User</h2>
+                        
+                        <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+                            <span id="profile-role-tag" style="padding: 5px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 500; background: #e0e0e0; color: #333;">
+                                角色載入中...
+                            </span>
+                        </div>
+                    </div>
+
+                    <button class="btn-block btn-primary-action" onclick="UserProfile.switchView('password')">
+                        🔐 修改密碼
+                    </button>
+                    <button class="btn-block btn-logout" onclick="logout()">
+                        登出系統
+                    </button>
+                </div>
+
+                <div class="view-section" id="view-password">
+                    <button class="back-btn" onclick="UserProfile.switchView('profile')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                        返回個人檔案
+                    </button>
+
+                    <h3 style="margin-top:0; margin-bottom:20px;">設定新密碼</h3>
+                    
+                    <form id="change-password-form">
+                        <div class="input-group">
+                            <label>目前密碼</label>
+                            <input type="password" id="cp-old" class="form-control" placeholder="請輸入舊密碼">
+                            <div class="feedback-text" id="fb-old"></div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>新密碼</label>
+                            <input type="password" id="cp-new" class="form-control" placeholder="至少 6 碼">
+                            <div class="strength-meter" id="strength-meter">
+                                <div class="strength-segment"></div>
+                                <div class="strength-segment"></div>
+                                <div class="strength-segment"></div>
+                            </div>
+                            <div class="feedback-text" id="fb-new"></div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>確認新密碼</label>
+                            <input type="password" id="cp-confirm" class="form-control" placeholder="再次輸入">
+                            <div class="feedback-text" id="fb-confirm"></div>
+                        </div>
+
+                        <button type="submit" id="btn-save-password" class="btn-block btn-primary-action" disabled>
+                            確認修改
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-container"></div>
+    <div id="panel-backdrop" class="panel-backdrop"></div>
+    <div id="slide-out-panel-container"></div>
+    <div id="notification-area"></div>
+
+    <script src="scripts/import-bundle.js" charset="UTF-8"></script>
+
+</body>
+</html>
