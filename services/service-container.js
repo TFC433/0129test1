@@ -1,9 +1,9 @@
 /**
  * services/service-container.js
  * 服務容器 (IoC Container)
- * * @version 7.2.0 (Phase B - SystemService Injection)
- * @date 2026-01-22
- * @description [Fix] 注入 SystemService，完成 System 模組分層。
+ * * @version 7.3.0 (Phase 6-2 Company SQL Injection)
+ * @date 2026-01-30
+ * @description [Fix] 注入 CompanySqlReader 至 CompanyService，啟用 Phase 6-2 SQL Read 邏輯。
  */
 
 const config = require('../config');
@@ -14,7 +14,9 @@ const GoogleClientService = require('./google-client-service');
 
 // --- Import Readers ---
 const ContactReader = require('../data/contact-reader');
+const ContactSqlReader = require('../data/contact-sql-reader'); // [Added] Phase 6-2
 const CompanyReader = require('../data/company-reader');
+const CompanySqlReader = require('../data/company-sql-reader'); // [Added] Phase 6-2
 const OpportunityReader = require('../data/opportunity-reader');
 const InteractionReader = require('../data/interaction-reader');
 const EventLogReader = require('../data/event-log-reader');
@@ -68,7 +70,7 @@ let services = null;
 async function initializeServices() {
     if (services) return services;
 
-    console.log('🚀 [System] 正在初始化 Service Container (v7.2.0 SystemService)...');
+    console.log('🚀 [System] 正在初始化 Service Container (v7.3.0 Company SQL)...');
 
     try {
         // 1. Infrastructure
@@ -79,7 +81,9 @@ async function initializeServices() {
 
         // 2. Readers
         const contactReader = new ContactReader(sheets, config.IDS.CORE);
+        const contactSqlReader = new ContactSqlReader(); // [Added] Phase 6-2
         const companyReader = new CompanyReader(sheets, config.IDS.CORE);
+        const companySqlReader = new CompanySqlReader(); // [Added] Phase 6-2
         const opportunityReader = new OpportunityReader(sheets, config.IDS.CORE);
         const interactionReader = new InteractionReader(sheets, config.IDS.CORE);
         const eventLogReader = new EventLogReader(sheets, config.IDS.CORE);
@@ -112,18 +116,21 @@ async function initializeServices() {
         // [New] System Service
         const systemService = new SystemService(systemReader, systemWriter);
 
+        // [Modified] Inject companySqlReader (11th arg)
         const companyService = new CompanyService(
             companyReader, companyWriter, contactReader, contactWriter,
             opportunityReader, opportunityWriter, interactionReader, interactionWriter,
-            eventLogReader, systemReader
+            eventLogReader, systemReader,
+            companySqlReader
         );
         
-        const contactService = new ContactService(contactReader, contactWriter, companyReader);
+        // [Modified] Inject config (4th) and contactSqlReader (5th)
+        const contactService = new ContactService(contactReader, contactWriter, companyReader, config, contactSqlReader);
 
         const opportunityService = new OpportunityService({
             config, 
             opportunityReader, opportunityWriter, 
-            contactReader, contactWriter,
+            contactReader, contactWriter, 
             companyReader, companyWriter, 
             interactionReader, interactionWriter,
             eventLogReader, systemReader
