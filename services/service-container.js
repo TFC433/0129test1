@@ -1,9 +1,9 @@
 /**
  * services/service-container.js
  * 服務容器 (IoC Container)
- * * @version 7.3.0 (Phase 6-2 Company SQL Injection)
+ * * @version 7.5.1 (Phase 6-2 WeeklyBusiness SQL Injection)
  * @date 2026-01-30
- * @description [Fix] 注入 CompanySqlReader 至 CompanyService，啟用 Phase 6-2 SQL Read 邏輯。
+ * @description [Fix] 注入 WeeklyBusinessSqlReader 至 WeeklyBusinessService，啟用 Phase 6-2 SQL Read 邏輯。
  */
 
 const config = require('../config');
@@ -18,10 +18,13 @@ const ContactSqlReader = require('../data/contact-sql-reader'); // [Added] Phase
 const CompanyReader = require('../data/company-reader');
 const CompanySqlReader = require('../data/company-sql-reader'); // [Added] Phase 6-2
 const OpportunityReader = require('../data/opportunity-reader');
+const OpportunitySqlReader = require('../data/opportunity-sql-reader'); // [Added] Phase 6-2
 const InteractionReader = require('../data/interaction-reader');
+const InteractionSqlReader = require('../data/interaction-sql-reader'); // [Added] Phase 6-2
 const EventLogReader = require('../data/event-log-reader');
 const SystemReader = require('../data/system-reader');
 const WeeklyBusinessReader = require('../data/weekly-business-reader');
+const WeeklyBusinessSqlReader = require('../data/weekly-business-sql-reader'); // [Added] Phase 6-2
 const AnnouncementReader = require('../data/announcement-reader');
 const ProductReader = require('../data/product-reader');
 
@@ -70,7 +73,7 @@ let services = null;
 async function initializeServices() {
     if (services) return services;
 
-    console.log('🚀 [System] 正在初始化 Service Container (v7.3.0 Company SQL)...');
+    console.log('🚀 [System] 正在初始化 Service Container (v7.5.1 Weekly SQL)...');
 
     try {
         // 1. Infrastructure
@@ -85,9 +88,12 @@ async function initializeServices() {
         const companyReader = new CompanyReader(sheets, config.IDS.CORE);
         const companySqlReader = new CompanySqlReader(); // [Added] Phase 6-2
         const opportunityReader = new OpportunityReader(sheets, config.IDS.CORE);
+        const opportunitySqlReader = new OpportunitySqlReader(); // [Added] Phase 6-2
         const interactionReader = new InteractionReader(sheets, config.IDS.CORE);
+        const interactionSqlReader = new InteractionSqlReader(); // [Added] Phase 6-2
         const eventLogReader = new EventLogReader(sheets, config.IDS.CORE);
         const weeklyReader = new WeeklyBusinessReader(sheets, config.IDS.CORE);
+        const weeklyBusinessSqlReader = new WeeklyBusinessSqlReader(); // [Added] Phase 6-2
         const announcementReader = new AnnouncementReader(sheets, config.IDS.CORE);
         const systemReader = new SystemReader(sheets, config.IDS.SYSTEM);
         const productReader = new ProductReader(sheets, config.IDS.PRODUCT);
@@ -127,21 +133,32 @@ async function initializeServices() {
         // [Modified] Inject config (4th) and contactSqlReader (5th)
         const contactService = new ContactService(contactReader, contactWriter, companyReader, config, contactSqlReader);
 
+        // [Modified] Inject opportunitySqlReader (in params object)
         const opportunityService = new OpportunityService({
             config, 
             opportunityReader, opportunityWriter, 
             contactReader, contactWriter, 
             companyReader, companyWriter, 
             interactionReader, interactionWriter,
-            eventLogReader, systemReader
+            eventLogReader, systemReader,
+            opportunitySqlReader // [Added]
         });
 
-        const interactionService = new InteractionService(interactionReader, interactionWriter, opportunityReader, companyReader);
+        // [Modified] Inject interactionSqlReader (5th arg)
+        const interactionService = new InteractionService(
+            interactionReader, 
+            interactionWriter, 
+            opportunityReader, 
+            companyReader,
+            interactionSqlReader
+        );
+        
         const eventLogService = new EventLogService(eventLogReader, eventLogWriter, opportunityReader, companyReader, systemReader, calendarService);
         
         const weeklyBusinessService = new WeeklyBusinessService({
             weeklyBusinessReader: weeklyReader, 
             weeklyBusinessWriter: weeklyWriter,
+            weeklyBusinessRepo: weeklyBusinessSqlReader, // [Added] Phase 6-2 SQL Injection
             dateHelpers,
             calendarService,
             systemReader,

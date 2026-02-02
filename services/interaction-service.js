@@ -1,10 +1,10 @@
 /**
  * services/interaction-service.js
  * 互動紀錄業務邏輯層
- * * @version 6.1.0 (Phase 5 - Standard A Refactoring)
- * @date 2026-01-23
+ * * @version 6.2.0 (Phase 6-2 - SQL First Preparation)
+ * @date 2026-01-30
  * @description 負責處理互動紀錄的查詢、排序、過濾、分頁與 Join。[Standard A] 承擔完整邏輯。
- * 依賴注入：InteractionReader, InteractionWriter, OpportunityReader, CompanyReader
+ * 依賴注入：InteractionReader, InteractionWriter, OpportunityReader, CompanyReader, InteractionSqlReader(Optional)
  */
 
 class InteractionService {
@@ -13,12 +13,40 @@ class InteractionService {
      * @param {InteractionWriter} interactionWriter 
      * @param {OpportunityReader} opportunityReader 
      * @param {CompanyReader} companyReader 
+     * @param {Object} [interactionSqlReader=null] Optional SQL Reader for Phase 6-2
      */
-    constructor(interactionReader, interactionWriter, opportunityReader, companyReader) {
+    constructor(interactionReader, interactionWriter, opportunityReader, companyReader, interactionSqlReader = null) {
         this.interactionReader = interactionReader;
         this.interactionWriter = interactionWriter;
         this.opportunityReader = opportunityReader;
         this.companyReader = companyReader;
+        this.interactionSqlReader = interactionSqlReader;
+    }
+
+    /**
+     * 內部私有方法：取得互動紀錄原始資料
+     * 策略：SQL First -> Sheet Fallback
+     * @param {boolean} forceSheet 強制使用 Sheet (用於除錯或特定場景)
+     * @returns {Promise<Array>} 原始互動紀錄陣列
+     */
+    async _fetchInteractions(forceSheet = false) {
+        // 1. Try SQL if available and not forced to Sheet
+        if (!forceSheet && this.interactionSqlReader) {
+            try {
+                const rows = await this.interactionSqlReader.getInteractions();
+                if (rows && rows.length > 0) {
+                    console.log('[InteractionService] Read Source: SQL');
+                    return rows;
+                }
+            } catch (error) {
+                console.warn('[InteractionService] SQL Read Failed, falling back to Sheet:', error);
+                // Fallthrough to Sheet
+            }
+        }
+
+        // 2. Sheet Fallback
+        console.log('[InteractionService] Read Source: Sheet (Fallback)');
+        return this.interactionReader.getInteractions();
     }
 
     /**
@@ -30,9 +58,9 @@ class InteractionService {
      */
     async searchInteractions(query, page = 1, fetchAll = false) {
         try {
-            // 1. Raw Fetch (Parallel)
+            // 1. Raw Fetch (Parallel with SQL/Sheet switch)
             const [interactions, opportunities, companies] = await Promise.all([
-                this.interactionReader.getInteractions(), // Raw
+                this._fetchInteractions(), // Switchable Source
                 this.opportunityReader.getOpportunities(), // Raw
                 this.companyReader.getCompanyList() // Raw
             ]);

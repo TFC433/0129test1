@@ -9,9 +9,11 @@
 /**
  * services/opportunity-service.js
  * 機會案件業務邏輯層 (Service Layer)
- * * @version 6.1.2 (Fix: Migrate Stage Aggregation)
- * @date 2026-01-27
+ * * @version 7.6.0 (Phase 6-2: Fix Data Truncation)
+ * @date 2026-01-30
  * @description 負責處理與「機會案件」相關的 CRUD、關聯管理與自動日誌。
+ * [Phase 6-2] 引入 OpportunitySqlReader，實作 Read SQL First + Sheet Fallback。
+ * [Fix] searchOpportunities 移除後端分頁 Slice，直接回傳完整 Array 以符合前端全量資料預期。
  * 依賴注入：Readers (Opportunity, Interaction, EventLog, Contact, System) & Writers (Company, Contact, Opportunity, Interaction) & Config
  */
 
@@ -28,6 +30,7 @@ class OpportunityService {
      * @param {InteractionWriter} interactionWriter
      * @param {EventLogReader} eventLogReader
      * @param {SystemReader} systemReader
+     * @param {OpportunitySqlReader} [opportunitySqlReader] // [Added] Phase 6-2 Injection
      */
     constructor({
         config,
@@ -40,7 +43,8 @@ class OpportunityService {
         interactionReader,
         interactionWriter,
         eventLogReader,
-        systemReader
+        systemReader,
+        opportunitySqlReader // [Added]
     }) {
         this.config = config;
         
@@ -51,6 +55,7 @@ class OpportunityService {
         this.contactReader = contactReader;
         this.systemReader = systemReader;
         this.companyReader = companyReader;
+        this.opportunitySqlReader = opportunitySqlReader; // [Added]
 
         // Writers
         this.opportunityWriter = opportunityWriter;
@@ -72,6 +77,43 @@ class OpportunityService {
             .replace(/股份有限公司|有限公司|公司/g, '') // 移除常見後綴
             .replace(/\(.*\)/g, '') // 移除括號內容
             .trim();
+    }
+
+    /**
+     * [Phase 6-2] 統一資料獲取入口
+     * 策略：SQL First -> Sheet Fallback
+     * @param {boolean} forceSheet - 強制讀取 Sheet (用於 Write 操作需 rowIndex 時)
+     */
+    async _fetchOpportunities(forceSheet = false) {
+        let opportunities = null;
+
+        // 1. Try SQL
+        if (!forceSheet && this.opportunitySqlReader) {
+            try {
+                const sqlData = await this.opportunitySqlReader.getOpportunities();
+                if (sqlData && Array.isArray(sqlData) && sqlData.length > 0) {
+                    console.log('[OpportunityService] Read Source: SQL');
+                    // SQL Reader 應回傳符合 DTO 形狀的資料
+                    opportunities = sqlData; 
+                }
+            } catch (error) {
+                console.warn(`[OpportunityService] SQL Read Failed, falling back: ${error.message}`);
+                // Fallback will happen below
+            }
+        }
+
+        // 2. Fallback to Sheet
+        if (!opportunities) {
+            if (!forceSheet) console.log('[OpportunityService] Read Source: Sheet (Fallback)');
+            try {
+                opportunities = await this.opportunityReader.getOpportunities();
+            } catch (error) {
+                console.error('[OpportunityService] Sheet Read Failed:', error);
+                throw error;
+            }
+        }
+
+        return opportunities;
     }
 
     /**
@@ -99,7 +141,13 @@ class OpportunityService {
     async createOpportunity(opportunityData, user) {
         try {
             const modifier = user.displayName || user.username || 'System';
-            return await this.opportunityWriter.createOpportunity(opportunityData, modifier);
+            const result = await this.opportunityWriter.createOpportunity(opportunityData, modifier);
+            
+            // Invalidate Cache if available
+            if (this.opportunityReader.invalidateCache) {
+                this.opportunityReader.invalidateCache('opportunities');
+            }
+            return result;
         } catch (error) {
             console.error('[OpportunityService] createOpportunity Error:', error);
             throw error;
@@ -112,8 +160,7 @@ class OpportunityService {
      */
     async getOpportunityDetails(opportunityId) {
         try {
-            // ✅ Fix: ContactReader does not have getLinkedContacts()
-            // Use Raw Data from getAllOppContactLinks() + getContactList() and JOIN in Service layer
+            // [Modified] Use _fetchOpportunities (SQL/Sheet)
             const [
                 allOpportunities, 
                 interactionsFromCache, 
@@ -122,7 +169,7 @@ class OpportunityService {
                 allOfficialContacts,
                 allPotentialContacts
             ] = await Promise.all([
-                this.opportunityReader.getOpportunities(),
+                this._fetchOpportunities(), // [Modified]
                 this.interactionReader.getInteractions(),
                 this.eventLogReader.getEventLogs(),
                 this.contactReader.getAllOppContactLinks(),
@@ -243,7 +290,9 @@ class OpportunityService {
         try {
             const modifier = user.displayName || user.username || 'System';
             
-            const opportunities = await this.opportunityReader.getOpportunities();
+            // [Modified] Use strict sheet read or ensure rowIndex exists. 
+            // Using _fetchOpportunities(true) to force Sheet read ensuring rowIndex validity and consistency.
+            const opportunities = await this._fetchOpportunities(true); 
             const originalOpportunity = opportunities.find(o => o.rowIndex === parseInt(rowIndex));
             
             if (!originalOpportunity) {
@@ -285,6 +334,11 @@ class OpportunityService {
 
             // --- 執行更新 ---
             const updateResult = await this.opportunityWriter.updateOpportunity(rowIndex, updateData, modifier);
+            
+            // Invalidate Cache
+            if (this.opportunityReader.invalidateCache) {
+                this.opportunityReader.invalidateCache('opportunities');
+            }
             
             // --- 寫入日誌 ---
             if (logs.length > 0) {
@@ -390,7 +444,8 @@ class OpportunityService {
         try {
             const modifier = user.displayName || user.username || 'System';
             
-            const opportunities = await this.opportunityReader.getOpportunities();
+            // [Modified] Use forceSheet=true to ensure rowIndex match
+            const opportunities = await this._fetchOpportunities(true);
             const opportunity = opportunities.find(o => o.rowIndex === parseInt(rowIndex));
             
             if (!opportunity) {
@@ -399,6 +454,11 @@ class OpportunityService {
 
             const deleteResult = await this.opportunityWriter.deleteOpportunity(rowIndex, modifier);
             
+            // Invalidate Cache
+            if (this.opportunityReader.invalidateCache) {
+                this.opportunityReader.invalidateCache('opportunities');
+            }
+
             // 刪除後，嘗試在公司層級留下一筆紀錄
             if (deleteResult.success && opportunity.customerCompany) {
                 try {
@@ -438,8 +498,8 @@ class OpportunityService {
      */
     async getOpportunitiesByDateRange(startDate, endDate, dateField = 'createdTime') {
         try {
-            // 使用 Reader 獲取所有機會 (利用 Cache)
-            const allOpportunities = await this.opportunityReader.getOpportunities();
+            // [Modified] Use _fetchOpportunities (SQL/Sheet)
+            const allOpportunities = await this._fetchOpportunities();
             
             return allOpportunities.filter(opp => {
                 const dateVal = opp[dateField];
@@ -468,9 +528,9 @@ class OpportunityService {
      */
     async getOpportunitiesByCounty(opportunityType = null) {
         try {
-            // 1. Fetch Raw Data in Parallel
+            // [Modified] Use _fetchOpportunities
             const [allOpportunities, companies] = await Promise.all([
-                this.opportunityReader.getOpportunities(),
+                this._fetchOpportunities(),
                 this.companyReader.getCompanyList() // Via DI
             ]);
 
@@ -520,8 +580,9 @@ class OpportunityService {
      */
     async getOpportunitiesByStage() {
         try {
+            // [Modified] Use _fetchOpportunities
             const [opportunities, systemConfig] = await Promise.all([
-                this.opportunityReader.getOpportunities(),
+                this._fetchOpportunities(),
                 this.systemReader.getSystemConfig()
             ]);
             
@@ -553,17 +614,56 @@ class OpportunityService {
 
     /**
      * [Standard A] 搜尋機會案件
-     * * Service 卸除資料層邏輯，轉為代理角色
-     * * 由 Reader 負責執行查詢、過濾、排序與分頁 (單一真相)
+     * [Phase 6-2 Modified] Reimplemented to support SQL First.
+     * Logic: Fetch All (SQL/Sheet) -> InMemory Filter/Sort
+     * [Fix 1] Return Array only to match Frontend Contract (remove pagination metadata object wrapper)
+     * [Fix 2] Remove backend slicing logic to return FULL result set (Fixing data truncation issue)
      */
     async searchOpportunities(query, page, filters) {
         try {
-            // 定義預設排序 (依最後更新時間倒序)
-            const sortOptions = { field: 'lastUpdateTime', direction: 'desc' };
+            // 1. Fetch Data (SQL First)
+            let items = await this._fetchOpportunities();
 
-            // 直接委派 Reader 執行，不在此重複過濾或運算
-            // 注意：Archived 過濾已由 Reader.getOpportunities 內部處理
-            return await this.opportunityReader.searchOpportunities(query, page, filters, sortOptions);
+            // 2. Filter (Reimplementing Reader logic for Service Layer control)
+            if (!filters || !filters.includeArchived) {
+                items = items.filter(o => o.currentStatus !== this.config.CONSTANTS.OPPORTUNITY_STATUS.ARCHIVED);
+            }
+
+            // Filter: Query (Name / Company)
+            if (query) {
+                const q = query.toLowerCase().trim();
+                items = items.filter(o => 
+                    (o.opportunityName && o.opportunityName.toLowerCase().includes(q)) ||
+                    (o.customerCompany && o.customerCompany.toLowerCase().includes(q))
+                );
+            }
+
+            // Filter: Specific Fields
+            if (filters) {
+                if (filters.stage && filters.stage !== 'all') {
+                    items = items.filter(o => o.currentStage === filters.stage);
+                }
+                if (filters.assignee && filters.assignee !== 'all') {
+                    items = items.filter(o => o.assignee === filters.assignee);
+                }
+                if (filters.status && filters.status !== 'all') {
+                    items = items.filter(o => o.currentStatus === filters.status);
+                }
+                if (filters.minProb) {
+                    items = items.filter(o => Number(o.probability || 0) >= Number(filters.minProb));
+                }
+            }
+
+            // 3. Sort (Default: lastUpdateTime desc)
+            items.sort((a, b) => {
+                const dateA = new Date(a.lastUpdateTime || 0).getTime();
+                const dateB = new Date(b.lastUpdateTime || 0).getTime();
+                return dateB - dateA;
+            });
+
+            // 4. Return Full List (No Slicing)
+            // 前端自行處理分頁或預期全量顯示，後端不再切片
+            return items;
 
         } catch (error) {
              console.error('❌ [OpportunityService] searchOpportunities 錯誤:', error);
@@ -575,7 +675,13 @@ class OpportunityService {
      * [Proxy] 批量更新機會案件 (原 Controller 直呼 Writer)
      */
     async batchUpdateOpportunities(updates) {
-        return await this.opportunityWriter.batchUpdateOpportunities(updates);
+        const result = await this.opportunityWriter.batchUpdateOpportunities(updates);
+        
+        // Invalidate Cache
+        if (this.opportunityReader.invalidateCache) {
+            this.opportunityReader.invalidateCache('opportunities');
+        }
+        return result;
     }
 }
 

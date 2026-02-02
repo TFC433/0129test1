@@ -1,13 +1,17 @@
-/* [v7.0.4] Weekly Standard A + S Final Polish */
+/* [v7.0.10] Weekly Standard A + S SQL-Ready Polish */
 /**
  * services/weekly-business-service.js
  * 週間業務邏輯服務 (Service Layer)
- * * @version 7.0.1 (Standard A + S Final)
- * @date 2026-01-23
+ * @version 7.0.10 (Fix Date String Comparison)
+ * @date 2026-01-30
  * @description 
- * [Final Polish]
- * 1. deleteWeeklyBusinessEntry 介面修正 (移除 rowIndex 參數)。
- * 2. getEntriesForWeek 增加明確的 View-only 欄位標記。
+ * [SQL Integration Phase]
+ * 1. 新增 _fetchWeeklyEntries 收斂點，支援 SQL First (Read) 與 Sheet Fallback。
+ * 2. Update/Delete 強制使用 forceSheet: true 以保留 rowIndex。
+ * 3. Read 介面 (List/Summary) 統一改用 _fetchWeeklyEntries。
+ * 4. 新增 _toServiceDTO 處理 SQL snake_case 轉 Service/Frontend 格式。
+ * 5. 新增 Runtime Log 確認 SQL 讀取成功。
+ * 6. [Fix] 使用字串比較 (String Comparison) 進行日期過濾，徹底解決時區偏移導致資料消失的問題。
  */
 
 class WeeklyBusinessService {
@@ -17,6 +21,7 @@ class WeeklyBusinessService {
     constructor({ 
         weeklyBusinessReader, 
         weeklyBusinessWriter, 
+        weeklyBusinessRepo, // [SQL] Optional Injection
         dateHelpers, 
         calendarService, 
         systemReader,
@@ -25,6 +30,7 @@ class WeeklyBusinessService {
     }) {
         this.weeklyBusinessReader = weeklyBusinessReader;
         this.weeklyBusinessWriter = weeklyBusinessWriter;
+        this.weeklyBusinessRepo = weeklyBusinessRepo; // [SQL]
         this.dateHelpers = dateHelpers;
         this.calendarService = calendarService;
         this.systemReader = systemReader;
@@ -33,22 +39,104 @@ class WeeklyBusinessService {
     }
 
     /**
+     * [Internal] 資料格式轉換 (SQL -> Service/Frontend)
+     * 將資料庫 snake_case 欄位轉換為 Service 與 Frontend 預期的格式 (包含中文 Key)
+     */
+    _toServiceDTO(row) {
+        if (!row) return null;
+
+        return {
+            // --- 1. Service 必要識別與邏輯欄位 ---
+            recordId: row.record_id,
+            weekId: row.week_id,
+            '日期': row.entry_date, // Service 排序與計算依賴
+            summaryContent: row.summary_content, // Service Summary List 依賴
+            creator: row.created_by,
+
+            // --- 2. CamelCase 標準化 (Rest of fields) ---
+            entryDate: row.entry_date,
+            category: row.category,
+            topic: row.topic,
+            participants: row.participants,
+            todoItems: row.todo_items,
+            createdTime: row.created_time,
+            updatedTime: row.updated_time,
+
+            // --- 3. 前端顯示用欄位 (Frontend Legacy Keys) ---
+            '分類': row.category,
+            '項目': row.topic,
+            '內容': row.summary_content, // Mapping summary to content area
+            '參與人': row.participants,
+            '追蹤事項': row.todo_items,
+            '下週計畫': row.plan ?? '',       // [Defensive] 若 SQL 無此欄位則給空字串
+            '部門': row.division ?? ''        // [Defensive] 若 SQL 無此欄位則給空字串
+        };
+    }
+
+    /**
+     * [Internal] 資料讀取收斂點
+     * @param {Object} options - { forceSheet: boolean }
+     * - forceSheet: true 用於 Write (需要 rowIndex)
+     * - forceSheet: false 用於 Read (優先 SQL)
+     */
+    async _fetchWeeklyEntries(options = { forceSheet: false }) {
+        // 1. SQL First (Read-Only Path)
+        if (!options.forceSheet && this.weeklyBusinessRepo) {
+            try {
+                // SQL Repo 不會回傳 rowIndex，僅適用於 View
+                const sqlEntries = await this.weeklyBusinessRepo.findAll();
+                
+                // [Log] 確認 SQL 讀取成功
+                console.log('[WeeklyService] Read Source: SQL');
+
+                // 轉換 SQL snake_case 為 Service DTO
+                return sqlEntries.map(row => this._toServiceDTO(row));
+
+            } catch (error) {
+                console.warn('[WeeklyService] SQL Read Failed, falling back to Sheet:', error);
+                // Fallback continues below
+            }
+        }
+
+        // 2. Sheet Reader (Write Path / Fallback)
+        // 回傳包含 rowIndex 的完整資料
+        return await this.weeklyBusinessReader.getAllEntries();
+    }
+
+    /**
      * 獲取特定週次的所有條目
      * [View-Only] 負責 Filter, Sort, Day Calculation
+     * [Fix v7.0.10] 使用字串比較過濾日期，避免時區偏移
      * @param {string} weekId - 週次 ID (e.g., "2026-W03")
      */
     async getEntriesForWeek(weekId) {
         try {
-            // 1. 取得全量資料 (Raw)
-            const allEntries = await this.weeklyBusinessReader.getAllEntries();
+            // 1. 取得全量資料 (Via Convergence Point)
+            const allEntries = await this._fetchWeeklyEntries({ forceSheet: false });
             
-            // 2. Filter by weekId
-            let entries = allEntries.filter(entry => entry.weekId === weekId);
+            // 2. [Fix] Date Range String Filter Setup
+            const weekInfo = this.dateHelpers.getWeekInfo(weekId);
+            if (!weekInfo || !weekInfo.days || weekInfo.days.length === 0) {
+                return [];
+            }
             
-            // 3. Sort by Date (Desc)
+            // 使用字串 (YYYY-MM-DD) 進行比對，確保無時區干擾
+            const weekStartStr = weekInfo.days[0].date;
+            const weekEndStr = weekInfo.days[weekInfo.days.length - 1].date;
+
+            // 3. Filter by String Date Range
+            let entries = allEntries.filter(entry => {
+                const dateVal = entry.entryDate || entry['日期'];
+                if (!dateVal) return false;
+                
+                // 字串比對: "2026-01-20" >= "2026-01-19" works correctly for ISO format
+                return dateVal >= weekStartStr && dateVal <= weekEndStr;
+            });
+            
+            // 4. Sort by Date (Desc)
             entries.sort((a, b) => new Date(b['日期']) - new Date(a['日期']));
 
-            // 4. Calculate 'day' (View-Only Field)
+            // 5. Calculate 'day' (View-Only Field)
             entries = entries.map(entry => {
                 let dayValue = -1;
                 try {
@@ -86,7 +174,8 @@ class WeeklyBusinessService {
      */
     async getWeeklyBusinessSummaryList() {
         try {
-            const rawData = await this.weeklyBusinessReader.getWeeklySummary();
+            // [Modified] 統一走 _fetchWeeklyEntries，支援 SQL 切換
+            const rawData = await this._fetchWeeklyEntries({ forceSheet: false });
             
             const weekSummaryMap = new Map();
             rawData.forEach(item => {
@@ -251,7 +340,8 @@ class WeeklyBusinessService {
         const prevWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
         const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-        const summaryData = await this.weeklyBusinessReader.getWeeklySummary();
+        // [Modified] 統一走 _fetchWeeklyEntries，支援 SQL 切換
+        const summaryData = await this._fetchWeeklyEntries({ forceSheet: false });
         const existingWeekIds = new Set(summaryData.map(w => w.weekId));
 
         const options = [
@@ -289,8 +379,8 @@ class WeeklyBusinessService {
      */
     async updateWeeklyBusinessEntry(recordId, data) {
         try {
-            // 1. Service Lookup (Simulate SQL Where)
-            const allEntries = await this.weeklyBusinessReader.getAllEntries();
+            // 1. Service Lookup (FORCE SHEET to ensure rowIndex exists)
+            const allEntries = await this._fetchWeeklyEntries({ forceSheet: true });
             const target = allEntries.find(e => e.recordId === recordId);
             
             if (!target) {
@@ -313,8 +403,8 @@ class WeeklyBusinessService {
      */
     async deleteWeeklyBusinessEntry(recordId) {
         try {
-            // 1. Service Lookup
-            const allEntries = await this.weeklyBusinessReader.getAllEntries();
+            // 1. Service Lookup (FORCE SHEET to ensure rowIndex exists)
+            const allEntries = await this._fetchWeeklyEntries({ forceSheet: true });
             const target = allEntries.find(e => e.recordId === recordId);
             
             if (!target) {
